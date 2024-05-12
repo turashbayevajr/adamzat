@@ -1,4 +1,3 @@
-//server/models/room.js
 const mongoose = require('mongoose');
 
 const playerSchema = new mongoose.Schema({
@@ -11,6 +10,7 @@ const playerSchema = new mongoose.Schema({
             },
             message: 'Nickname must not be null',
         },
+        default: null, // Allow null values
     },
 });
 
@@ -51,11 +51,10 @@ const roomSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
-    // rounds: [roundSchema],
 });
 
-// Unique index for players.nickname within each room
-roomSchema.index({ "players.nickname": 1 }, { unique: true, partialFilterExpression: { "players.nickname": { $exists: true } } });
+// Unique compound index for "pin" and "players.nickname" within each room
+roomSchema.index({ pin: 1, "players.nickname": 1 }, { unique: true, partialFilterExpression: { "players.nickname": { $type: 'string' } } });
 
 const Room = mongoose.model('Room', roomSchema);
 

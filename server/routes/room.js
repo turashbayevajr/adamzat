@@ -6,23 +6,24 @@ const { Room } = require('../models/room');
 router.post('/create', async (req, res) => {
     const { pin, ownerNickname, password, confirmPassword, categories } = req.body;
 
-    // Validate input data
     if (!pin || !ownerNickname || !password || !confirmPassword || !categories || categories.length !== 5) {
         return res.status(400).json({ message: 'Invalid request data' });
     }
 
     try {
-        // Check if PIN already exists
-        const existingRoom = await Room.findOne({ pin });
+        if (isNaN(parseInt(pin))) {
+            return res.status(400).json({ message: 'Invalid PIN format' });
+        }
+
+        const existingRoom = await Room.findOne({ pin: parseInt(pin) });
         if (existingRoom) {
             return res.status(400).json({ message: 'PIN is already in use' });
         }
 
-        // Create the room
-        const room = new Room({ pin, ownerNickname, password, confirmPassword, categories });
+        const room = new Room({ pin: parseInt(pin), ownerNickname, password, confirmPassword, categories });
         await room.save();
 
-        res.status(201).json({ message: 'Room created successfully', roomId: room._id });
+        res.status(201).json({ message: 'Room created successfully', roomPin: room.pin });
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Server error' });
@@ -59,8 +60,8 @@ router.post('/join', async (req, res) => {
         // Add the player to the room
         room.players.push({ nickname });
         await room.save();
-        // Log room information after player joins
-        console.log('Room information after player joins:', room);
+        // // Log room information after player joins
+        // console.log('Room information after player joins:', room);
 
         res.status(200).json({ message: 'Player joined successfully', roomPin: room.pin });
     } catch (error) {
@@ -70,9 +71,10 @@ router.post('/join', async (req, res) => {
 });
 
 router.get('/gameplay/:id', async (req, res) => {
-    const roomId = req.params.id;
+    const roomPin = req.params.id;
+
     try {
-        const room = await Room.findById(roomId);
+        const room = await Room.findOne({ pin: roomPin });
         if (!room) {
             return res.status(404).json({ message: 'Room not found' });
         }
@@ -87,6 +89,5 @@ router.get('/gameplay/:id', async (req, res) => {
         res.status(500).json({ message: 'Internal server error: ' + error.message });
     }
 });
-
 
 module.exports = router;

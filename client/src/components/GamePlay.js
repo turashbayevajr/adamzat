@@ -28,12 +28,16 @@ const GamePlay = () => {
         return <div>Loading room details...</div>;
     }
 
+    const playerNickname = roomDetails.players.find(player => player.nickname === roomDetails.ownerNickname)?.nickname;
+
     return (
         <div>
             <h1>Game Room: {roomDetails.pin}</h1>
             <h2>Owner: {roomDetails.ownerNickname}</h2>
-            <div>Players: {roomDetails.players.map(player => player.nickname).join(', ')}</div>
-            <div>Categories: {roomDetails.categories.join(', ')}</div>
+            <div>
+                <h3>Player's Username:</h3>
+                {playerNickname ? <p>{playerNickname}</p> : <p>Player not found</p>}
+            </div>
         </div>
     );
 };

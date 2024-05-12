@@ -57,10 +57,10 @@ const CreateRoom = () => {
             const data = await createRoom(pin, ownerNickname, password, confirmPassword, selectedCategories);
             setSuccessMessage('Room created successfully');
             // Redirect to the gameplay page with the room ID
-            navigate(`/gameplay/${data.id}`);
+            navigate(`/gameplay/${data.roomPin}`);
         } catch (error) {
-            console.error(error.message); // Handle error//
-            }
+            console.error(error.message); // Handle error
+        }
     };
 
     return (
