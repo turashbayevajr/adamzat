@@ -23,7 +23,7 @@ router.post('/create', async (req, res) => {
         const room = new Room({ pin: parseInt(pin), ownerNickname, password, confirmPassword, categories });
         await room.save();
 
-        res.status(201).json({ message: 'Room created successfully', roomPin: room.pin });
+        res.status(201).json({ message: 'Room created successfully', roomPin: room.pin});
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Server error' });
@@ -63,7 +63,7 @@ router.post('/join', async (req, res) => {
         // // Log room information after player joins
         // console.log('Room information after player joins:', room);
 
-        res.status(200).json({ message: 'Player joined successfully', roomPin: room.pin });
+        res.status(200).json({ message: 'Player joined successfully', roomPin: room.pin});
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error' });

@@ -1,9 +1,11 @@
+// GamePlay.js
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { getRoomDetails } from '../services/api'; // Ensure this path is correct
+import { useParams, useLocation } from 'react-router-dom';
+import { getRoomDetails } from '../services/api';
 
 const GamePlay = () => {
     const { id } = useParams();
+    const location = useLocation();
     const [roomDetails, setRoomDetails] = useState(null);
     const [error, setError] = useState('');
 
@@ -28,15 +30,13 @@ const GamePlay = () => {
         return <div>Loading room details...</div>;
     }
 
-    const playerNickname = roomDetails.players.find(player => player.nickname === roomDetails.ownerNickname)?.nickname;
-
+    const playerNickname = location.state?.playerNickname || '';
     return (
         <div>
             <h1>Game Room: {roomDetails.pin}</h1>
             <h2>Owner: {roomDetails.ownerNickname}</h2>
             <div>
-                <h3>Player's Username:</h3>
-                {playerNickname ? <p>{playerNickname}</p> : <p>Player not found</p>}
+                <h2>Current User: {playerNickname}</h2>
             </div>
         </div>
     );

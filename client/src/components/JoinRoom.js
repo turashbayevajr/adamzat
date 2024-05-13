@@ -18,7 +18,7 @@ const JoinRoom = () => {
             const data = await joinRoom(pin, password, nickname);
             if (data && data.roomPin) {
                 setMessage('Player joined successfully');
-                navigate(`/gameplay/${data.roomPin}`);
+                navigate(`/gameplay/${data.roomPin}`, { state: { playerNickname: nickname} });
             } else {
                 setMessage('Unexpected response from server');
             }
