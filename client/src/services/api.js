@@ -1,4 +1,3 @@
-//client/src/services/api.js
 import axios from 'axios';
 
 const backendUrl = 'http://localhost:2709/api'; // Updated backend URL
@@ -11,14 +10,14 @@ const api = axios.create({
 });
 
 // Function to create a new room and return the room ID
-export const createRoom = async (pin, ownerNickname, password, confirmPassword, categories) => {
+export const createRoom = async (pin, nickname, password, confirmPassword, categories) => {
     try {
         const response = await api.post('/room/create', {
             pin,
-            ownerNickname,
             password,
             confirmPassword,
             categories,
+            nickname, // Include the owner as a player
         });
         return response.data; // Assuming the server returns { roomId: '...' }
     } catch (error) {
@@ -61,5 +60,17 @@ export const getRoomDetails = async (roomId) => {
         }
     }
 };
+
+export const submitAnswers = async (roomPin, nickname, answers) => {
+    try {
+        const response = await api.post(`/room/submit-answers?roomPin=${roomPin}&nickname=${nickname}`, { answers });
+        return response.data;
+    } catch (error) {
+        console.error('Submit Answers Error:', error);
+        throw new Error(error.response?.data?.message || 'Server error');
+    }
+};
+
+
 
 export default api;

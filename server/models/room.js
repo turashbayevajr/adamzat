@@ -12,16 +12,20 @@ const playerSchema = new mongoose.Schema({
         },
         default: null, // Allow null values
     },
+    answers: [
+        {
+            type: String,
+        },
+    ],
+    points: {
+        type: Number,
+        default: 0,
+    },
 });
-
 const roomSchema = new mongoose.Schema({
     pin: {
         type: Number,
         unique: true,
-        required: true,
-    },
-    ownerNickname: {
-        type: String,
         required: true,
     },
     password: {
@@ -47,6 +51,13 @@ const roomSchema = new mongoose.Schema({
         },
     },
     players: [playerSchema], // Array of players with unique nicknames within each room
+    currentRound: {
+        type: Number,
+        default: 1,
+    },
+    randomLetter: {
+        type: String,
+    },
     createdAt: {
         type: Date,
         default: Date.now,

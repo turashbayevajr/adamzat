@@ -23,7 +23,7 @@ const allCategories = [
 
 const CreateRoom = () => {
     const [pin, setPin] = useState('');
-    const [ownerNickname, setOwnerNickname] = useState('');
+    const [nickname, setNickname] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [selectedCategories, setSelectedCategories] = useState([]);
@@ -43,7 +43,7 @@ const CreateRoom = () => {
         e.preventDefault();
 
         // Client-side validation
-        if (!pin || !ownerNickname || !password || !confirmPassword || selectedCategories.length !== 5) {
+        if (!pin || !nickname || !password || !confirmPassword || selectedCategories.length !== 5) {
             setErrorMessage('Please fill in all fields and choose exactly 5 categories');
             return;
         }
@@ -54,10 +54,10 @@ const CreateRoom = () => {
         }
 
         try {
-            const data = await createRoom(pin, ownerNickname, password, confirmPassword, selectedCategories);
+            const data = await createRoom(pin, nickname, password, confirmPassword, selectedCategories);
             setSuccessMessage('Room created successfully');
             // Redirect to the gameplay page with the room ID
-            navigate(`/gameplay/${data.roomPin}`, { state: { playerNickname: ownerNickname } });
+            navigate(`/gameplay/${data.roomPin}`, { state: { playerNickname: nickname } });
         } catch (error) {
             console.error(error.message); // Handle error
         }
@@ -68,7 +68,7 @@ const CreateRoom = () => {
             <h2>Create Room</h2>
             <form onSubmit={handleSubmit}>
                 <input type="number" placeholder="Room PIN" value={pin} onChange={(e) => setPin(e.target.value)} />
-                <input type="text" placeholder="Your Nickname" value={ownerNickname} onChange={(e) => setOwnerNickname(e.target.value)} />
+                <input type="text" placeholder="Your Nickname" value={nickname} onChange={(e) => setNickname(e.target.value)} />
                 <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
                 <input type="password" placeholder="Confirm Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>

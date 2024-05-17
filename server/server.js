@@ -5,7 +5,11 @@ const cors = require('cors');
 const httpServer = require('http').createServer(app);
 const io = require('socket.io')(httpServer);
 const mongoose = require('mongoose');
+const bodyParser = require('body-parser');
 
+
+app.use(express.json());
+app.use(cors());
 // Import route handlers
 const roomsRouter = require('./routes/room');
 const gameplayRouter = require('./routes/gameplay');
@@ -25,8 +29,7 @@ const db = mongoose.connection;
 db.on("error", (error) => console.error("MongoDB connection error:", error));
 db.once("open", () => console.log("MongoDB connection established"));
 
-app.use(express.json());
-app.use(cors());
+
 
 // Use route handlers
 app.use('/api/room', roomsRouter);
