@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { getRoomDetails, submitAnswers } from '../services/api';
+import socket from '../services/socket'; // Import the socket instance
 
 const GamePlay = () => {
     const { id } = useParams();
@@ -8,11 +9,7 @@ const GamePlay = () => {
     const location = useLocation();
     const [timer, setTimer] = useState(60); // 60 seconds = 1 minute
     const [randomLetter, setRandomLetter] = useState('');
-    const [answer1, setAnswer1] = useState('');
-    const [answer2, setAnswer2] = useState('');
-    const [answer3, setAnswer3] = useState('');
-    const [answer4, setAnswer4] = useState('');
-    const [answer5, setAnswer5] = useState('');
+    const [answers, setAnswers] = useState(['', '', '', '', '']);
     const [playerNickname, setPlayerNickname] = useState('');
     const [currentRound, setCurrentRound] = useState(1); // Initialize round number to 1
 
@@ -22,30 +19,36 @@ const GamePlay = () => {
                 const details = await getRoomDetails(id);
                 setRoomDetails(details);
                 setPlayerNickname(location.state?.playerNickname || '');
-                setCurrentRound(details.currentRound); // Update current round from server response
-                setRandomLetter(details.randomLetter); // Update random letter from server response
+                setCurrentRound(details.currentRound);
+                setRandomLetter(details.randomLetter);
             } catch (error) {
                 console.error(error);
             }
         };
 
         fetchRoomDetails();
+
+        socket.on('answerSubmitted', (data) => {
+            console.log('Answer submitted:', data);
+        });
+
+        return () => {
+            socket.off('answerSubmitted');
+        };
     }, [id, location.state]);
 
+    const handleSubmit = useCallback(async () => {
+        const answerString = answers.join(',');
+
+        try {
+            await submitAnswers(roomDetails?.pin, playerNickname, answerString);
+            socket.emit('submitAnswers', { roomPin: roomDetails?.pin, nickname: playerNickname, answers: answerString }); // Emit the event
+        } catch (error) {
+            console.error(error);
+        }
+    }, [answers, playerNickname, roomDetails?.pin]);
+
     useEffect(() => {
-        const handleSubmit = async () => {
-            const answers = [answer1, answer2, answer3, answer4, answer5];
-            const answerString = answers.join(',');
-
-            try {
-                await submitAnswers(roomDetails?.pin, playerNickname, answerString);
-                // Handle successful submission
-            } catch (error) {
-                console.error(error);
-                // Handle error
-            }
-        };
-
         const countdown = setInterval(() => {
             setTimer((prevTimer) => prevTimer - 1);
         }, 1000);
@@ -56,7 +59,13 @@ const GamePlay = () => {
         }
 
         return () => clearInterval(countdown);
-    }, [answer1, answer2, answer3, answer4, answer5, timer, playerNickname, roomDetails]);
+    }, [timer, handleSubmit]);
+
+    const handleAnswerChange = (index, value) => {
+        const newAnswers = [...answers];
+        newAnswers[index] = value;
+        setAnswers(newAnswers);
+    };
 
     if (!roomDetails) {
         return <div>Loading room details...</div>;
@@ -77,14 +86,8 @@ const GamePlay = () => {
                         <input
                             type="text"
                             placeholder={`Enter word`}
-                            value={index === 0 ? answer1 : index === 1 ? answer2 : index === 2 ? answer3 : index === 3 ? answer4 : answer5}
-                            onChange={(e) => {
-                                if (index === 0) setAnswer1(e.target.value);
-                                else if (index === 1) setAnswer2(e.target.value);
-                                else if (index === 2) setAnswer3(e.target.value);
-                                else if (index === 3) setAnswer4(e.target.value);
-                                else setAnswer5(e.target.value);
-                            }}
+                            value={answers[index]}
+                            onChange={(e) => handleAnswerChange(index, e.target.value)}
                         />
                     </div>
                 ))}

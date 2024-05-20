@@ -1,4 +1,3 @@
-// server/routes/room.js
 const express = require('express');
 const router = express.Router();
 const { Room } = require('../models/room');
@@ -21,7 +20,6 @@ router.post('/create', async (req, res) => {
             return res.status(400).json({ message: 'PIN is already in use' });
         }
 
-        // Generate and save the initial random letter
         const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
         const randomIndex = Math.floor(Math.random() * letters.length);
         const randomLetter = letters[randomIndex];
@@ -38,6 +36,10 @@ router.post('/create', async (req, res) => {
 
         await room.save();
 
+        // Access io from the request object
+        const io = req.io;
+        io.emit('roomCreated', { roomPin: room.pin, players: room.players });
+
         res.status(201).json({ message: 'Room created successfully', roomPin: room.pin });
     } catch (err) {
         console.error(err);
@@ -49,32 +51,31 @@ router.post('/create', async (req, res) => {
 router.post('/join', async (req, res) => {
     const { pin, nickname, password } = req.body;
 
-    // Validate input data
     if (!pin || !nickname || !password) {
         return res.status(400).json({ message: 'Invalid request data' });
     }
 
     try {
-        // Check if the room exists
         const room = await Room.findOne({ pin });
         if (!room) {
             return res.status(404).json({ message: 'Room not found' });
         }
 
-        // Validate password
         if (room.password !== password) {
             return res.status(401).json({ message: 'Incorrect password' });
         }
 
-        // Check if nickname is already used in the room
         const existingPlayer = room.players.find((player) => player.nickname === nickname);
         if (existingPlayer) {
             return res.status(400).json({ message: 'Nickname is already in use in this room' });
         }
 
-        // Add the player to the room
         room.players.push({ nickname });
         await room.save();
+
+        // Access io from the request object
+        const io = req.io;
+        io.to(pin).emit('playerJoined', { players: room.players });
 
         res.status(200).json({ message: 'Player joined successfully', roomPin: room.pin });
     } catch (error) {
@@ -83,6 +84,7 @@ router.post('/join', async (req, res) => {
     }
 });
 
+// GET route to fetch room details
 router.get('/gameplay/:id', async (req, res) => {
     const roomPin = req.params.id;
 
@@ -91,12 +93,13 @@ router.get('/gameplay/:id', async (req, res) => {
         if (!room) {
             return res.status(404).json({ message: 'Room not found' });
         }
+
         res.json({
             pin: room.pin,
             players: room.players,
             categories: room.categories,
-            currentRound: room.currentRound, // Include current round
-            randomLetter: room.randomLetter, // Include random letter
+            currentRound: room.currentRound,
+            randomLetter: room.randomLetter,
         });
     } catch (error) {
         console.error('Error fetching room details:', error);
@@ -104,7 +107,7 @@ router.get('/gameplay/:id', async (req, res) => {
     }
 });
 
-// routes/room.js
+// POST route to submit answers
 router.post('/submit-answers', async (req, res) => {
     const { answers } = req.body;
     const { roomPin, nickname } = req.query;
@@ -120,8 +123,24 @@ router.post('/submit-answers', async (req, res) => {
             return res.status(404).json({ message: 'Player not found' });
         }
 
-        player.answers.push(answers);
-        await room.save();
+        // Retry mechanism for handling VersionError
+        try {
+            player.answers.push(answers);
+            await room.save();
+        } catch (error) {
+            if (error.name === 'VersionError') {
+                const updatedRoom = await Room.findById(room._id);
+                const updatedPlayer = updatedRoom.players.find((p) => p.nickname === nickname);
+                updatedPlayer.answers.push(answers);
+                await updatedRoom.save();
+            } else {
+                throw error;
+            }
+        }
+
+        // Access io from the request object
+        const io = req.io;
+        io.to(roomPin).emit('answerSubmitted', { nickname, answers });
 
         res.status(200).json({ message: 'Answers submitted successfully' });
     } catch (error) {
@@ -129,8 +148,5 @@ router.post('/submit-answers', async (req, res) => {
         res.status(500).json({ message: 'Server error' });
     }
 });
-
-
-
 
 module.exports = router;

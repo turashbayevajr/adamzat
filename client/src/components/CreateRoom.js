@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createRoom } from '../services/api';
+import socket from '../services/socket'; // Import the socket instance
 
 const allCategories = [
     'The name of the person',
@@ -31,6 +32,14 @@ const CreateRoom = () => {
     const [successMessage, setSuccessMessage] = useState('');
     const navigate = useNavigate();
 
+    useEffect(() => {
+        // Add any event listeners for socket here if needed
+
+        return () => {
+            // Clean up event listeners if added
+        };
+    }, []);
+
     const handleCheckboxChange = (category) => {
         if (selectedCategories.includes(category)) {
             setSelectedCategories(selectedCategories.filter((c) => c !== category));
@@ -42,7 +51,6 @@ const CreateRoom = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        // Client-side validation
         if (!pin || !nickname || !password || !confirmPassword || selectedCategories.length !== 5) {
             setErrorMessage('Please fill in all fields and choose exactly 5 categories');
             return;
@@ -56,10 +64,13 @@ const CreateRoom = () => {
         try {
             const data = await createRoom(pin, nickname, password, confirmPassword, selectedCategories);
             setSuccessMessage('Room created successfully');
-            // Redirect to the gameplay page with the room ID
+
+            socket.emit('createRoom', { roomPin: data.roomPin, nickname });
+
             navigate(`/gameplay/${data.roomPin}`, { state: { playerNickname: nickname } });
         } catch (error) {
-            console.error(error.message); // Handle error
+            setErrorMessage('Error creating room');
+            console.error(error.message);
         }
     };
 
@@ -72,23 +83,7 @@ const CreateRoom = () => {
                 <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
                 <input type="password" placeholder="Confirm Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    {allCategories.slice(0, 6).map((category) => (
-                        <label key={category}>
-                            <input type="checkbox" checked={selectedCategories.includes(category)} onChange={() => handleCheckboxChange(category)} />
-                            {category}
-                        </label>
-                    ))}
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    {allCategories.slice(6, 12).map((category) => (
-                        <label key={category}>
-                            <input type="checkbox" checked={selectedCategories.includes(category)} onChange={() => handleCheckboxChange(category)} />
-                            {category}
-                        </label>
-                    ))}
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    {allCategories.slice(12).map((category) => (
+                    {allCategories.map((category) => (
                         <label key={category}>
                             <input type="checkbox" checked={selectedCategories.includes(category)} onChange={() => handleCheckboxChange(category)} />
                             {category}
@@ -98,7 +93,7 @@ const CreateRoom = () => {
                 <button type="submit">Create</button>
             </form>
             {errorMessage && <p>{errorMessage}</p>}
-            {successMessage && <p>{successMessage}</p>} {/* Display success message */}
+            {successMessage && <p>{successMessage}</p>}
         </div>
     );
 };

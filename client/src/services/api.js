@@ -1,9 +1,9 @@
 import axios from 'axios';
 
-const backendUrl = 'http://localhost:2709/api'; // Updated backend URL
+const backendUrl = 'http://localhost:2709'; // Updated backend URL
 
 const api = axios.create({
-    baseURL: backendUrl,
+    baseURL: `${backendUrl}/api`,
     headers: {
         'Content-Type': 'application/json',
     },
@@ -70,7 +70,5 @@ export const submitAnswers = async (roomPin, nickname, answers) => {
         throw new Error(error.response?.data?.message || 'Server error');
     }
 };
-
-
 
 export default api;
