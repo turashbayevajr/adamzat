@@ -67,7 +67,7 @@ const CreateRoom = () => {
 
             socket.emit('createRoom', { roomPin: data.roomPin, nickname });
 
-            navigate(`/gameplay/${data.roomPin}`, { state: { playerNickname: nickname } });
+            navigate(`/waiting-room/${data.roomPin}`, { state: { playerNickname: nickname } });
         } catch (error) {
             setErrorMessage('Error creating room');
             console.error(error.message);

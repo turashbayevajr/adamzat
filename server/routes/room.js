@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Room } = require('../models/room');
+const Room = require('../models/room'); // Correctly import the Room model
 
 // POST route to create a room
 router.post('/create', async (req, res) => {
@@ -104,6 +104,26 @@ router.get('/gameplay/:id', async (req, res) => {
     } catch (error) {
         console.error('Error fetching room details:', error);
         res.status(500).json({ message: 'Internal server error: ' + error.message });
+    }
+});
+
+// POST route to start the game
+router.post('/start-game', async (req, res) => {
+    const { roomPin } = req.body;
+
+    try {
+        const room = await Room.findOne({ pin: roomPin });
+        if (!room) {
+            return res.status(404).json({ message: 'Room not found' });
+        }
+
+        // Notify all players that the game has started
+        req.io.to(roomPin).emit('gameStarted');
+
+        res.status(200).json({ message: 'Game started successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
     }
 });
 

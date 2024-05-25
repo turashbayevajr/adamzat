@@ -22,6 +22,7 @@ const playerSchema = new mongoose.Schema({
         default: 0,
     },
 });
+
 const roomSchema = new mongoose.Schema({
     pin: {
         type: Number,
@@ -69,4 +70,4 @@ roomSchema.index({ pin: 1, "players.nickname": 1 }, { unique: true, partialFilte
 
 const Room = mongoose.model('Room', roomSchema);
 
-module.exports = { Room };
+module.exports = Room;

@@ -4,6 +4,7 @@ const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
+const Room = require('./models/room'); // Ensure this path is correct
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -18,22 +19,15 @@ const io = new Server(server, {
 app.use(express.json());
 app.use(cors());
 
-// Import route handlers
 const roomsRouter = require('./routes/room');
-
-// Middleware to attach io to the request object
 app.use('/api/room', (req, res, next) => {
     req.io = io; // Attach io to the request object
     next();
 });
-
-// Use route handlers
 app.use('/api/room', roomsRouter);
 
-// User to Socket mapping to track user connections
 const userSockets = new Map();
 
-// Handle user disconnection
 const handleDisconnect = (socket) => {
     const userId = Array.from(userSockets.entries()).find(([key, value]) => value === socket)?.[0];
     if (userId) {
@@ -42,7 +36,7 @@ const handleDisconnect = (socket) => {
     }
 };
 
-io.on('connect', (socket) => {
+io.on('connection', (socket) => {
     console.log('Connected with id:', socket.id);
 
     socket.on('userId', (userId) => {
@@ -66,15 +60,33 @@ io.on('connect', (socket) => {
         socket.broadcast.emit('roomCreated', data);
     });
 
-    socket.on('joinRoom', (data) => {
-        console.log('Player joined:', data);
+    socket.on('joinRoom', async (data) => {
+        console.log(`Player joined: ${data.nickname} in room ${data.roomPin}`);
         socket.join(data.roomPin);
-        io.to(data.roomPin).emit('playerJoined', data);
+        try {
+            const room = await Room.findOne({ pin: data.roomPin });
+            if (room) {
+                const existingPlayer = room.players.find(player => player.nickname === data.nickname);
+                if (!existingPlayer) {
+                    room.players.push({ nickname: data.nickname });
+                    await room.save();
+                }
+                const players = room.players;
+                io.to(data.roomPin).emit('playerJoined', { players });
+            }
+        } catch (error) {
+            console.error(`Error finding or updating room: ${error}`);
+        }
     });
 
     socket.on('submitAnswers', (data) => {
         console.log('Answers submitted:', data);
         io.to(data.roomPin).emit('answerSubmitted', data);
+    });
+
+    socket.on('startGame', (data) => {
+        console.log('Game started:', data);
+        io.to(data.roomPin).emit('gameStarted', data);
     });
 });
 
@@ -83,7 +95,6 @@ server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
 
-// Connect to MongoDB
 async function connectToMongoDB() {
     try {
         await mongoose.connect('mongodb+srv://randomhero:azharnurda@cluster0.cw0qz.mongodb.net/adamzat');
