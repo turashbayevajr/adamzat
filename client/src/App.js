@@ -5,6 +5,8 @@ import CreateRoom from './components/CreateRoom';
 import JoinRoom from './components/JoinRoom';
 import WaitingRoom from "./components/WaitingRoom";
 import GamePlay from "./components/GamePlay";
+import CheckRoom from "./components/CheckRoom";
+import Results from "./components/Results"; // Import the new CheckRoom component
 
 const App = () => {
     return (
@@ -14,7 +16,9 @@ const App = () => {
                 <Route path="/create-room" element={<CreateRoom />} />
                 <Route path="/join-room" element={<JoinRoom />} />
                 <Route path="/waiting-room/:roomPin" element={<WaitingRoom />} />
-                <Route path="/gameplay/:id" element={<GamePlay />} />
+                <Route path="/gameplay/:roomPin/:round" element={<GamePlay />} />
+                <Route path="/check-room/:roomPin/:round" element={<CheckRoom />} />
+                <Route path="/results/:roomPin" element={<Results />} />
 
             </Routes>
         </Router>

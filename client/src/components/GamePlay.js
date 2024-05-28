@@ -1,28 +1,48 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useParams, useLocation } from 'react-router-dom';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { getRoomDetails, submitAnswers } from '../services/api';
-import socket from '../services/socket'; // Import the socket instance
+import socket from '../services/socket';
 
 const GamePlay = () => {
-    const { id } = useParams();
-    const [roomDetails, setRoomDetails] = useState(null);
+    const { roomPin, round } = useParams();
+    const navigate = useNavigate();
     const location = useLocation();
-    const [timer, setTimer] = useState(60); // 60 seconds = 1 minute
+    const [roomDetails, setRoomDetails] = useState(null);
+    const [timer, setTimer] = useState(20); // 60 seconds = 1 minute
     const [randomLetter, setRandomLetter] = useState('');
     const [answers, setAnswers] = useState(['', '', '', '', '']);
-    const [playerNickname, setPlayerNickname] = useState('');
-    const [currentRound, setCurrentRound] = useState(1); // Initialize round number to 1
+    const playerNickname = location.state?.playerNickname; // Directly use from location state
 
     useEffect(() => {
         const fetchRoomDetails = async () => {
             try {
-                const details = await getRoomDetails(id);
-                setRoomDetails(details);
-                setPlayerNickname(location.state?.playerNickname || '');
-                setCurrentRound(details.currentRound);
-                setRandomLetter(details.randomLetter);
+                const details = await getRoomDetails(roomPin);
+                console.log('Received details:', details); // Log the details received from the server
+
+                // Check the integrity and completeness of each required field
+                const hasValidCategories = Array.isArray(details.categories) && details.categories.length === 5;
+                const hasValidCurrentRound = typeof details.currentRound === 'number';
+                const hasValidPlayers = Array.isArray(details.players);
+                const hasValidRandomLetter = typeof details.randomLetter === 'string' && details.randomLetter.trim() !== '';
+                const hasValidPin = typeof details.pin === 'number';
+
+                // Log the status of each validation
+                console.log('Validation Status:', {
+                    hasValidCategories,
+                    hasValidCurrentRound,
+                    hasValidPlayers,
+                    hasValidRandomLetter,
+                    hasValidPin
+                });
+
+                if (hasValidCategories && hasValidCurrentRound && hasValidPlayers && hasValidRandomLetter && hasValidPin) {
+                    setRoomDetails(details);
+                    setRandomLetter(details.randomLetter);
+                } else {
+                    throw new Error('Invalid or incomplete data received from server');
+                }
             } catch (error) {
-                console.error(error);
+                console.error('Error fetching room details:', error);
             }
         };
 
@@ -35,22 +55,23 @@ const GamePlay = () => {
         return () => {
             socket.off('answerSubmitted');
         };
-    }, [id, location.state]);
+    }, [roomPin, round]);
 
     const handleSubmit = useCallback(async () => {
-        const answerString = answers.join(',');
-
         try {
-            await submitAnswers(roomDetails?.pin, playerNickname, answerString);
-            socket.emit('submitAnswers', { roomPin: roomDetails?.pin, nickname: playerNickname, answers: answerString }); // Emit the event
+            const answersString = answers.join(','); // Join answers into a single string
+            await submitAnswers(roomDetails?.pin, playerNickname, round, answersString, randomLetter);
+            socket.emit('submitAnswers', { roomPin: roomDetails?.pin, nickname: playerNickname, round: parseInt(round), answers: answersString, randomLetter });
+            navigate(`/check-room/${roomDetails?.pin}/${round}`, { state: { playerNickname, randomLetter } }); // Pass randomLetter in the state
         } catch (error) {
-            console.error(error);
+            console.error('Error submitting answers:', error);
         }
-    }, [answers, playerNickname, roomDetails?.pin]);
+    }, [answers, playerNickname, roomDetails, round, randomLetter, navigate]);
+
 
     useEffect(() => {
         const countdown = setInterval(() => {
-            setTimer((prevTimer) => prevTimer - 1);
+            setTimer(prevTimer => prevTimer - 1);
         }, 1000);
 
         if (timer === 0) {
@@ -74,7 +95,7 @@ const GamePlay = () => {
     return (
         <div>
             <h1>Game Room: {roomDetails.pin}</h1>
-            <h3>Round Number: {currentRound}</h3>
+            <h3>Round Number: {round}</h3>
             <h3>Random Letter: {randomLetter}</h3>
             <h3>Current User: {playerNickname}</h3>
 
@@ -98,5 +119,4 @@ const GamePlay = () => {
         </div>
     );
 };
-
 export default GamePlay;

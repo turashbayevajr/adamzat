@@ -69,7 +69,7 @@ const CreateRoom = () => {
 
             navigate(`/waiting-room/${data.roomPin}`, { state: { playerNickname: nickname } });
         } catch (error) {
-            setErrorMessage('Error creating room');
+            setErrorMessage(error.message || 'Error creating room');
             console.error(error.message);
         }
     };

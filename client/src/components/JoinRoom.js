@@ -7,6 +7,7 @@ const JoinRoom = () => {
     const [pin, setPin] = useState('');
     const [password, setPassword] = useState('');
     const [nickname, setNickname] = useState('');
+    const [errorMessage, setErrorMessage] = useState('');
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
@@ -21,6 +22,7 @@ const JoinRoom = () => {
                 navigate(`/waiting-room/${data.roomPin}`, { state: { playerNickname: nickname } });
             }
         } catch (error) {
+            setErrorMessage(error.message || 'Error joining room');
             console.error(error);
         }
     };
@@ -34,6 +36,7 @@ const JoinRoom = () => {
                 <input type="text" placeholder="Nickname" value={nickname} onChange={(e) => setNickname(e.target.value)} required />
                 <button type="submit">Join</button>
             </form>
+            {errorMessage && <p>{errorMessage}</p>}
         </div>
     );
 };

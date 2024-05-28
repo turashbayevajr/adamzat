@@ -25,7 +25,7 @@ const WaitingRoom = () => {
 
             // Listen for game start
             const handleGameStarted = () => {
-                navigate(`/gameplay/${roomPin}`, { state: { playerNickname } });
+                navigate(`/gameplay/${roomPin}/1`, { state: { playerNickname } }); // Redirect to the first round
             };
             socket.on('gameStarted', handleGameStarted);
 
