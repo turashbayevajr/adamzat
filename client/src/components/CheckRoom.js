@@ -1,32 +1,45 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useLocation } from 'react-router-dom';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { getRoomDetails, getRoundAnswers, submitPoints } from '../services/api';
 import socket from '../services/socket';
 
 const CheckRoom = () => {
     const { roomPin, round } = useParams();
     const location = useLocation();
+    const navigate = useNavigate();
     const [roomDetails, setRoomDetails] = useState(null);
     const [roundAnswers, setRoundAnswers] = useState([]);
-    const [points, setPoints] = useState({});
+    const [checkedAnswers, setCheckedAnswers] = useState({});
     const [timer, setTimer] = useState(20);
-    const playerNickname = location.state?.playerNickname; // Retrieve playerNickname from location state
+    const playerNickname = location.state?.playerNickname;
+
+    const calculatePoints = useCallback(() => {
+        const points = {};
+        Object.keys(checkedAnswers).forEach(nickname => {
+            points[nickname] = checkedAnswers[nickname].filter(checked => checked).length;
+        });
+        return points;
+    }, [checkedAnswers]);
 
     const handleSubmitPoints = useCallback(async () => {
+        const points = calculatePoints();
         try {
             await submitPoints(roomPin, points, round);
-            socket.emit('submitPoints', { roomPin, points, round });
-            alert('Points submitted successfully!');
+            const nextRound = parseInt(round) + 1;
+            if (nextRound > 5) {
+                navigate(`/results/${roomPin}`,  { state: { playerNickname } }); // Navigate to results page after the fifth round
+            } else {
+                navigate(`/gameplay/${roomPin}/${nextRound}`, { state: { playerNickname } }); // Navigate to next round
+            }
         } catch (error) {
             console.error('Error submitting points:', error);
-            alert('Failed to submit points.');
         }
-    }, [roomPin, points, round]);
+    }, [roomPin, round, calculatePoints, navigate, playerNickname]);
 
     useEffect(() => {
         const fetchRoomDetails = async () => {
             try {
-                const details = await getRoomDetails(roomPin);
+                const details = await getRoomDetails(roomPin, playerNickname);
                 setRoomDetails(details);
             } catch (error) {
                 console.error('Error fetching room details:', error);
@@ -37,7 +50,7 @@ const CheckRoom = () => {
             try {
                 const answers = await getRoundAnswers(roomPin, round);
                 setRoundAnswers(answers);
-                initializePoints(answers);
+                initializeCheckedAnswers(answers);
             } catch (error) {
                 console.error('Error fetching round answers:', error);
             }
@@ -48,10 +61,6 @@ const CheckRoom = () => {
 
         socket.on('newAnswer', (answer) => {
             updateAnswers(answer);
-        });
-
-        socket.on('pointsUpdated', (playerPoints) => {
-            setPoints(playerPoints);
         });
 
         const timerInterval = setInterval(() => {
@@ -68,17 +77,23 @@ const CheckRoom = () => {
 
         return () => {
             socket.off('newAnswer');
-            socket.off('pointsUpdated');
             clearInterval(timerInterval);
         };
-    }, [roomPin, round, handleSubmitPoints]);
+    }, [roomPin, round, handleSubmitPoints, playerNickname]);
 
-    const initializePoints = (answers) => {
-        const initialPoints = {};
-        answers.forEach(answer => {
-            initialPoints[answer.nickname] = 0;
+    const initializeCheckedAnswers = (answers) => {
+        setCheckedAnswers(prev => {
+            if (Object.keys(prev).length === 0) { // Only initialize if checkedAnswers is empty
+                const initialChecked = {};
+                answers.forEach(answer => {
+                    if (Array.isArray(answer.answers)) {
+                        initialChecked[answer.nickname] = answer.answers.map(() => false);
+                    }
+                });
+                return initialChecked;
+            }
+            return prev;
         });
-        setPoints(initialPoints);
     };
 
     const updateAnswers = (newAnswer) => {
@@ -94,13 +109,17 @@ const CheckRoom = () => {
         });
     };
 
-    // const handlePointsChange = (nickname, newPoints) => {
-    //     // Check if newPoints is a valid number
-    //     const value = newPoints === '' ? '' : parseInt(newPoints);
-    //     if (!isNaN(value) || value === '') {
-    //         setPoints(prev => ({ ...prev, [nickname]: value }));
-    //     }
-    // };
+    const handleCheckboxChange = useCallback((nickname, index) => {
+        setCheckedAnswers(prev => {
+            const newChecked = { ...prev };
+            if (!newChecked[nickname]) {
+                newChecked[nickname] = [];
+            }
+            newChecked[nickname] = [...newChecked[nickname]];
+            newChecked[nickname][index] = !newChecked[nickname][index];
+            return newChecked;
+        });
+    }, []);
 
     if (!roomDetails) {
         return <div>Loading room details...</div>;
@@ -111,7 +130,7 @@ const CheckRoom = () => {
             <h1>Game Room: {roomDetails.pin}</h1>
             <h2>Round Number: {round}</h2>
             <h2>Round Letter: {location.state?.randomLetter}</h2>
-            <h2>Current User: {playerNickname}</h2> {/* Display current username */}
+            <h2>Current User: {playerNickname}</h2>
             <h2>Categories:</h2>
             {roomDetails.categories.map((category, index) => (
                 <div key={index}>{category}</div>
@@ -122,20 +141,25 @@ const CheckRoom = () => {
                 <tr>
                     <th>User</th>
                     <th>Answer</th>
-                    <th>Points</th>
                 </tr>
                 </thead>
                 <tbody>
                 {roundAnswers.map((answer, index) => (
                     <tr key={index}>
                         <td>{answer.nickname}</td>
-                        <td>{answer.answers}</td>
                         <td>
-                            <input
-                                type="text"
-                                pattern="[0-5]*"
-                                value={points[answer.nickname] !== undefined ? points[answer.nickname] : ''}
-                            />
+                            {Array.isArray(answer.answers) ? answer.answers.map((word, wordIndex) => (
+                                <div key={wordIndex}>
+                                    <label>
+                                        <input
+                                            type="checkbox"
+                                            checked={checkedAnswers[answer.nickname]?.[wordIndex] || false}
+                                            onChange={() => handleCheckboxChange(answer.nickname, wordIndex)}
+                                        />
+                                        {word}
+                                    </label>
+                                </div>
+                            )) : 'No answers'}
                         </td>
                     </tr>
                 ))}

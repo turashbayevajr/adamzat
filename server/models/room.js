@@ -12,38 +12,30 @@ const playerSchema = new mongoose.Schema({
         },
         default: null,
     },
-    answers: [
-        {
-            type: String,
-        },
-    ],
+    answers: {
+        type: [[String]], // Nested array to handle multiple rounds
+        default: [[], [], [], [], []], // Initialize with 5 empty sub-arrays
+    },
     points: [
         {
             type: Number,
-            default: 0
         },
     ],
     overallPoints: {
         type: Number,
         default: 0,
     },
+    currentRound: {
+        type: Number,
+        default: 1,
+    },
+    hasSubmitted: {
+        type: Boolean,
+        default: false,
+    },
 });
 
-const roundResultSchema = new mongoose.Schema({
-    round: {
-        type: Number,
-        required: true,
-    },
-    letter: {
-        type: String,
-        required: true,
-    },
-    points: {
-        type: Map,
-        of: Number,
-        default: {},
-    },
-});
+
 
 const roomSchema = new mongoose.Schema({
     pin: {
@@ -80,10 +72,6 @@ const roomSchema = new mongoose.Schema({
         },
     },
     players: [playerSchema],
-    currentRound: {
-        type: Number,
-        default: 1,
-    },
     randomLetters: {
         type: [String],
         default: () => {
@@ -96,7 +84,6 @@ const roomSchema = new mongoose.Schema({
             return Array.from(randomLetters);
         },
     },
-    roundResults: [roundResultSchema],
     createdAt: {
         type: Date,
         default: Date.now,

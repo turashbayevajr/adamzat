@@ -84,13 +84,40 @@ io.on('connection', (socket) => {
         try {
             const room = await Room.findOne({ pin: data.roomPin });
             if (room) {
-                const player = room.players.find(player => player.nickname === data.nickname);
-                if (player) {
-                    player.answers = data.answers; // Assuming data.answers is already the correct format (e.g., an array)
-                    await room.save();
+                const playerIndex = room.players.findIndex(player => player.nickname === data.nickname);
+                if (playerIndex !== -1) {
+                    const player = room.players[playerIndex];
+                    const currentRound = player.currentRound;
+
+                    // Ensure the player's answers array is initialized and has 5 sub-arrays
+                    while (player.answers.length < 5) {
+                        player.answers.push([]);
+                    }
+
+                    // Update the specific round in the answers array
+                    player.answers[currentRound - 1] = data.answers; // Store answers at the correct round index
+
+                    // Mark that the player has submitted for the current round
+                    player.hasSubmitted = true;
+
+                    // Check if all players have submitted for the current round
+                    const allSubmitted = room.players.every(p => p.currentRound > currentRound || p.hasSubmitted);
+
+                    if (allSubmitted) {
+                        // Increment current round for all players who have submitted
+                        room.players.forEach(p => {
+                            if (p.hasSubmitted) {
+                                p.currentRound += 1;
+                                p.hasSubmitted = false; // Reset submission status for the next round
+                            }
+                        });
+                    }
+
+                    // Save the room with the updated player answers
+                    await room.save(); // Use save() instead of findOneAndUpdate() to avoid version errors
+
                     io.to(data.roomPin).emit('answersUpdated', { players: room.players });
                 }
-
             }
         } catch (error) {
             console.error(`Error updating answers: ${error}`);
@@ -98,10 +125,12 @@ io.on('connection', (socket) => {
         io.to(data.roomPin).emit('answerSubmitted', data);
     });
 
+
     socket.on('startGame', (data) => {
         console.log('Game started:', data);
         io.to(data.roomPin).emit('gameStarted', data);
     });
+
 
     socket.on('submitPoints', async (data) => {
         console.log('Points submitted:', data);
@@ -115,8 +144,8 @@ io.on('connection', (socket) => {
                     if (data.points[player.nickname] !== undefined) {
                         const point = parseInt(data.points[player.nickname]);
                         player.points.push({ round: currentRound, point });
-                        if (!roundPoints[point]) roundPoints[point] = 0;
-                        roundPoints[point]++;
+                        if (!roundPoints[player.nickname]) roundPoints[player.nickname] = 0;
+                        roundPoints[player.nickname] += point;
                     }
                 });
 
@@ -141,6 +170,7 @@ io.on('connection', (socket) => {
             console.error('Error submitting points:', error);
         }
     });
+
 });
 
 const PORT = process.env.PORT || 2709;

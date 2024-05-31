@@ -80,8 +80,10 @@ router.post('/join', async (req, res) => {
         res.status(500).json({ message: 'Server error' });
     }
 });
+
+
 router.post('/submit-answers', async (req, res) => {
-    const { roomPin, nickname, round, answers } = req.body;
+    const { roomPin, nickname, answers, version } = req.body;
 
     try {
         const room = await Room.findOne({ pin: parseInt(roomPin) });
@@ -89,26 +91,88 @@ router.post('/submit-answers', async (req, res) => {
             return res.status(404).json({ message: 'Room not found' });
         }
 
-        const player = room.players.find((p) => p.nickname === nickname);
-        if (!player) {
+        const playerIndex = room.players.findIndex((p) => p.nickname === nickname);
+        if (playerIndex === -1) {
             return res.status(404).json({ message: 'Player not found' });
         }
 
-        // Save the answers string directly
-        player.answers[round - 1] = answers; // Save answers as a single string
+        const player = room.players[playerIndex];
+        const currentRound = player.currentRound;
 
-        await room.save();
+        // Ensure the player's answers array is initialized and has 5 sub-arrays
+        while (player.answers.length < 5) {
+            player.answers.push([]);
+        }
+
+        // Update the specific round in the answers array
+        player.answers[currentRound] = answers; // Store answers at the correct round index
+
+        // Mark that the player has submitted for the current round
+        player.hasSubmitted = true;
+
+        // Save the room with the updated player answers, ensuring the document version matches
+        const updatedRoom = await Room.findOneAndUpdate(
+            { pin: parseInt(roomPin), 'players.nickname': nickname, __v: version },
+            { $set: { 'players.$': player } },
+            { new: true }
+        );
+
+        if (!updatedRoom) {
+            return res.status(409).json({ message: 'Concurrent modification detected. Please refresh and try again.' });
+        }
 
         const io = req.io;
-        io.to(roomPin).emit('answersUpdated', { players: room.players });
+        io.to(roomPin).emit('answersUpdated', { players: updatedRoom.players });
 
-        res.status(200).json({ message: 'Answers submitted successfully' });
+        res.status(200).json({ message: 'Answers submitted successfully', room: updatedRoom });
     } catch (error) {
-        console.error(error);
+        console.error('Error submitting answers:', error);
         res.status(500).json({ message: 'Server error' });
     }
 });
 
+router.post('/submit-points', async (req, res) => {
+    const { roomPin, points, version } = req.body;
+
+    try {
+        let room = await Room.findOne({ pin: parseInt(roomPin) });
+        if (!room) {
+            return res.status(404).json({ message: 'Room not found' });
+        }
+
+        room.players.forEach(player => {
+            if (points[player.nickname] !== undefined) {
+                const currentRound = player.currentRound;
+
+                // Ensure the player's points array is initialized and has the correct length
+                while (player.points.length < currentRound) {
+                    player.points.push(0);
+                }
+                player.points[currentRound] = points[player.nickname];
+                player.overallPoints += points[player.nickname];
+            }
+        });
+
+        // Save the room with the updated player points, ensuring the document version matches
+        room = await Room.findOneAndUpdate(
+            { pin: parseInt(roomPin), __v: version },
+            { players: room.players },
+            { new: true }
+        );
+
+        if (!room) {
+            return res.status(409).json({ message: 'Concurrent modification detected. Please refresh and try again.' });
+        }
+
+        const io = req.io;
+        io.to(roomPin).emit('pointsUpdated', { players: room.players });
+
+        res.status(200).json({ message: 'Points submitted successfully', room });
+    } catch (error) {
+        console.error('Error submitting points:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
 
 router.get('/answers/:roomPin/:round', async (req, res) => {
     const { roomPin, round } = req.params;
@@ -132,58 +196,9 @@ router.get('/answers/:roomPin/:round', async (req, res) => {
     }
 });
 
-
-router.post('/submit-points', async (req, res) => {
-    let { roomPin, playerPoints, roundLetter } = req.body;
-
-    if (!playerPoints || typeof playerPoints !== 'object') {
-        return res.status(400).json({ message: 'Invalid player points data' });
-    }
-
-    try {
-        const room = await Room.findOne({ pin: roomPin });
-        if (!room) {
-            return res.status(404).json({ message: 'Room not found' });
-        }
-
-        if (!room.players || room.players.length === 0) {
-            return res.status(400).json({ message: 'No players in room' });
-        }
-
-        room.players.forEach(player => {
-            if (playerPoints[player.nickname] !== undefined) {
-                const point = parseInt(playerPoints[player.nickname], 10);
-                if (isNaN(point)) {
-                    console.error(`Invalid point value for ${player.nickname}: ${playerPoints[player.nickname]}`);
-                    throw new Error(`Invalid point value for ${player.nickname}`);
-                }
-                player.points[room.currentRound - 1] = point; // Save the point for the current round
-                player.overallPoints += point; // Update the overall points
-            }
-        });
-
-        if (!roundLetter) {
-            console.warn('Round letter is missing, defaulting to "A"');
-            roundLetter = 'A'; // default value if roundLetter is missing
-        }
-
-        room.roundResults.push({
-            round: room.currentRound,
-            letter: roundLetter,
-            points: playerPoints // Assuming you want to store the entire object
-        });
-
-        await room.save();
-        res.status(200).json({ message: 'Points submitted successfully' });
-    } catch (error) {
-        console.error('Error processing submit-points:', error);
-        res.status(500).json({ message: 'Server error', error: error.message });
-    }
-});
-
-// GET route to fetch room details
-router.get('/gameplay/:roomPin', async (req, res) => {
+router.get('/gameplay/:roomPin/:nickname', async (req, res) => {
     const roomPin = parseInt(req.params.roomPin);
+    const { nickname } = req.params;
 
     try {
         const room = await Room.findOne({ pin: roomPin });
@@ -191,19 +206,27 @@ router.get('/gameplay/:roomPin', async (req, res) => {
             return res.status(404).json({ message: 'Room not found' });
         }
 
-        const randomLetter = room.randomLetters[room.currentRound - 1];
+        const player = room.players.find(p => p.nickname === nickname);
+        if (!player) {
+            return res.status(404).json({ message: 'Player not found' });
+        }
+
+        const randomLetter = room.randomLetters[player.currentRound - 1];
+
         res.json({
             pin: room.pin,
             players: room.players,
             categories: room.categories,
-            currentRound: room.currentRound,
-            randomLetter: randomLetter
+            randomLetter: randomLetter,
+            currentRound: player.currentRound
         });
     } catch (error) {
         console.error('Error fetching room details:', error);
         res.status(500).json({ message: 'Internal server error: ' + error.message });
     }
 });
+
+
 
 // POST route to start the game
 router.post('/start-game', async (req, res) => {

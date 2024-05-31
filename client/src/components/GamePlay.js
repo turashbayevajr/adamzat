@@ -8,39 +8,17 @@ const GamePlay = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const [roomDetails, setRoomDetails] = useState(null);
-    const [timer, setTimer] = useState(20); // 60 seconds = 1 minute
+    const [timer, setTimer] = useState(20);
     const [randomLetter, setRandomLetter] = useState('');
-    const [answers, setAnswers] = useState(['', '', '', '', '']);
-    const playerNickname = location.state?.playerNickname; // Directly use from location state
+    const [answers, setAnswers] = useState(['', '', '', '', '']); // Array to store answers for each category
+    const playerNickname = location.state?.playerNickname;
 
     useEffect(() => {
         const fetchRoomDetails = async () => {
             try {
-                const details = await getRoomDetails(roomPin);
-                console.log('Received details:', details); // Log the details received from the server
-
-                // Check the integrity and completeness of each required field
-                const hasValidCategories = Array.isArray(details.categories) && details.categories.length === 5;
-                const hasValidCurrentRound = typeof details.currentRound === 'number';
-                const hasValidPlayers = Array.isArray(details.players);
-                const hasValidRandomLetter = typeof details.randomLetter === 'string' && details.randomLetter.trim() !== '';
-                const hasValidPin = typeof details.pin === 'number';
-
-                // Log the status of each validation
-                console.log('Validation Status:', {
-                    hasValidCategories,
-                    hasValidCurrentRound,
-                    hasValidPlayers,
-                    hasValidRandomLetter,
-                    hasValidPin
-                });
-
-                if (hasValidCategories && hasValidCurrentRound && hasValidPlayers && hasValidRandomLetter && hasValidPin) {
-                    setRoomDetails(details);
-                    setRandomLetter(details.randomLetter);
-                } else {
-                    throw new Error('Invalid or incomplete data received from server');
-                }
+                const details = await getRoomDetails(roomPin, playerNickname);
+                setRoomDetails(details);
+                setRandomLetter(details.randomLetter);
             } catch (error) {
                 console.error('Error fetching room details:', error);
             }
@@ -55,19 +33,23 @@ const GamePlay = () => {
         return () => {
             socket.off('answerSubmitted');
         };
-    }, [roomPin, round]);
+    }, [roomPin, round, playerNickname]);
 
     const handleSubmit = useCallback(async () => {
         try {
-            const answersString = answers.join(','); // Join answers into a single string
-            await submitAnswers(roomDetails?.pin, playerNickname, round, answersString, randomLetter);
-            socket.emit('submitAnswers', { roomPin: roomDetails?.pin, nickname: playerNickname, round: parseInt(round), answers: answersString, randomLetter });
-            navigate(`/check-room/${roomDetails?.pin}/${round}`, { state: { playerNickname, randomLetter } }); // Pass randomLetter in the state
+            await submitAnswers(roomPin, playerNickname, answers); // Submit answers as an array
+            socket.emit('submitAnswers', { roomPin, nickname: playerNickname, answers, randomLetter });
+            navigate(`/check-room/${roomPin}/${round}`, { state: { playerNickname, randomLetter } });
         } catch (error) {
             console.error('Error submitting answers:', error);
         }
-    }, [answers, playerNickname, roomDetails, round, randomLetter, navigate]);
+    }, [answers, playerNickname, roomPin, round, navigate, randomLetter]);
 
+    const handleAnswerChange = (index, value) => {
+        const newAnswers = [...answers];
+        newAnswers[index] = value;
+        setAnswers(newAnswers);
+    };
 
     useEffect(() => {
         const countdown = setInterval(() => {
@@ -81,12 +63,6 @@ const GamePlay = () => {
 
         return () => clearInterval(countdown);
     }, [timer, handleSubmit]);
-
-    const handleAnswerChange = (index, value) => {
-        const newAnswers = [...answers];
-        newAnswers[index] = value;
-        setAnswers(newAnswers);
-    };
 
     if (!roomDetails) {
         return <div>Loading room details...</div>;
@@ -119,4 +95,5 @@ const GamePlay = () => {
         </div>
     );
 };
+
 export default GamePlay;

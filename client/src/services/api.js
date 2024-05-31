@@ -43,16 +43,17 @@ export const joinRoom = async (pin, password, nickname) => {
 };
 
 // Assuming `getRoomDetails` is defined in an API utility file
-
-export const getRoomDetails = async (roomPin) => {
+export const getRoomDetails = async (roomPin, nickname) => {
     try {
-        const response = await api.get(`/room/gameplay/${roomPin}`);
+        const response = await api.get(`/room/gameplay/${roomPin}/${nickname}`);
         return response.data; // This assumes the server responds with JSON data
     } catch (error) {
         console.error('Error fetching room details:', error);
         throw error; // Handle this in your component to show appropriate feedback
     }
 };
+
+
 export const submitAnswers = async (roomPin, nickname, round, answers) => {
     try {
         const response = await api.post(`/room/submit-answers`, {
@@ -72,23 +73,25 @@ export const submitAnswers = async (roomPin, nickname, round, answers) => {
     }
 };
 
-
-
 // Function to submit points for a specific round
-export const submitPoints = async (roomPin, nickname, round, points) => {
+export const submitPoints = async (roomPin, points, round) => {
     try {
         const response = await api.post(`/room/submit-points`, {
             roomPin,
-            nickname,
             round,
             points,
         });
-        return response.data; // Return the data from the response
+        return response.data;
     } catch (error) {
         console.error('Submit Points Error:', error);
-        throw new Error(error.response?.data?.message || 'Server error');
+        if (error.response?.data?.message) {
+            throw new Error(`Server error: ${error.response.data.message}`);
+        } else {
+            throw new Error('An error occurred while submitting points.');
+        }
     }
 };
+
 
 export const getRoundAnswers = async (roomPin, round) => {
     try {
