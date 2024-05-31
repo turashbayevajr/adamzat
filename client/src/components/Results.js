@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { getRoomDetails } from '../services/api';
 import socket from '../services/socket';
@@ -10,35 +10,33 @@ const Results = () => {
     const location = useLocation();
     const playerNickname = location.state?.playerNickname;
 
-    const fetchAndSortPlayers = useCallback(async () => {
-        try {
-            const details = await getRoomDetails(roomPin, playerNickname);
-            // Sort players by overall points in descending order
-            const sortedPlayers = details.players.sort((a, b) => b.overallPoints - a.overallPoints);
-            setPlayers(sortedPlayers);
-        } catch (error) {
-            setError('Error fetching room details');
-            console.error('Error fetching room details:', error);
-        }
-    }, [roomPin, playerNickname]);
-
     useEffect(() => {
-        fetchAndSortPlayers();
+        const fetchRoomDetails = async () => {
+            try {
+                const details = await getRoomDetails(roomPin, playerNickname);
+                // Sort players by overall points in descending order
+                const sortedPlayers = details.players.sort((a, b) => b.overallPoints - a.overallPoints);
+                setPlayers(sortedPlayers);
+            } catch (error) {
+                setError('Error fetching room details');
+                console.error('Error fetching room details:', error);
+            }
+        };
 
-        const handlePointsUpdate = (updatedPlayers) => {
+        fetchRoomDetails();
+
+        const handlePointsUpdate = ({ players }) => {
             // Sort updated players by overall points in descending order
-            const sortedPlayers = updatedPlayers.sort((a, b) => b.overallPoints - a.overallPoints);
+            const sortedPlayers = players.sort((a, b) => b.overallPoints - a.overallPoints);
             setPlayers(sortedPlayers);
         };
 
-        socket.emit('joinRoom', { roomPin, nickname: playerNickname });
-
-        socket.on('pointsUpdate', handlePointsUpdate);
+        socket.on('pointsUpdated', handlePointsUpdate);
 
         return () => {
-            socket.off('pointsUpdate', handlePointsUpdate);
+            socket.off('pointsUpdated', handlePointsUpdate);
         };
-    }, [roomPin, playerNickname, fetchAndSortPlayers]);
+    }, [roomPin, playerNickname]);
 
     return (
         <div>

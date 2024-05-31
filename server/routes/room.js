@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Room = require('../models/room');
+const mongoose = require('mongoose');
 
 // POST route to create a room
 router.post('/create', async (req, res) => {
@@ -64,10 +65,10 @@ router.post('/join', async (req, res) => {
             return res.status(400).json({ message: 'Nickname already used in this room' });
         }
 
-        if (room.currentRound > 1) {
+        const gameStarted = room.players.some(player => player.currentRound > 1);
+        if (gameStarted) {
             return res.status(400).json({ message: 'Game in this room already started' });
         }
-
         room.players.push({ nickname });
         await room.save();
 
@@ -81,9 +82,8 @@ router.post('/join', async (req, res) => {
     }
 });
 
-
 router.post('/submit-answers', async (req, res) => {
-    const { roomPin, nickname, answers, version } = req.body;
+    const { roomPin, nickname, answers } = req.body;
 
     try {
         const room = await Room.findOne({ pin: parseInt(roomPin) });
@@ -110,29 +110,26 @@ router.post('/submit-answers', async (req, res) => {
         // Mark that the player has submitted for the current round
         player.hasSubmitted = true;
 
-        // Save the room with the updated player answers, ensuring the document version matches
-        const updatedRoom = await Room.findOneAndUpdate(
-            { pin: parseInt(roomPin), 'players.nickname': nickname, __v: version },
-            { $set: { 'players.$': player } },
-            { new: true }
-        );
+        // Save the room with the updated player answers
+        room.players[playerIndex] = player;
 
-        if (!updatedRoom) {
-            return res.status(409).json({ message: 'Concurrent modification detected. Please refresh and try again.' });
-        }
+        await room.save();
 
         const io = req.io;
-        io.to(roomPin).emit('answersUpdated', { players: updatedRoom.players });
+        io.to(roomPin).emit('answersUpdated', { players: room.players });
 
-        res.status(200).json({ message: 'Answers submitted successfully', room: updatedRoom });
+        res.status(200).json({ message: 'Answers submitted successfully', room });
     } catch (error) {
-        console.error('Error submitting answers:', error);
-        res.status(500).json({ message: 'Server error' });
+        if (error instanceof mongoose.Error.VersionError) {
+            res.status(409).json({ message: 'Concurrent modification detected. Please refresh and try again.' });
+        } else {
+            console.error('Error submitting answers:', error);
+            res.status(500).json({ message: 'Server error' });
+        }
     }
 });
-
 router.post('/submit-points', async (req, res) => {
-    const { roomPin, points, version } = req.body;
+    const { roomPin, points } = req.body;
 
     try {
         let room = await Room.findOne({ pin: parseInt(roomPin) });
@@ -153,26 +150,22 @@ router.post('/submit-points', async (req, res) => {
             }
         });
 
-        // Save the room with the updated player points, ensuring the document version matches
-        room = await Room.findOneAndUpdate(
-            { pin: parseInt(roomPin), __v: version },
-            { players: room.players },
-            { new: true }
-        );
-
-        if (!room) {
-            return res.status(409).json({ message: 'Concurrent modification detected. Please refresh and try again.' });
-        }
+        await room.save();
 
         const io = req.io;
         io.to(roomPin).emit('pointsUpdated', { players: room.players });
 
         res.status(200).json({ message: 'Points submitted successfully', room });
     } catch (error) {
-        console.error('Error submitting points:', error);
-        res.status(500).json({ message: 'Server error' });
+        if (error instanceof mongoose.Error.VersionError) {
+            res.status(409).json({ message: 'Concurrent modification detected. Please refresh and try again.' });
+        } else {
+            console.error('Error submitting points:', error);
+            res.status(500).json({ message: 'Server error' });
+        }
     }
 });
+
 
 router.get('/answers/:roomPin/:round', async (req, res) => {
     const { roomPin, round } = req.params;
